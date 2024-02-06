@@ -41,50 +41,38 @@ public class SparkSQLClient {
 	}
 	
 	private static void showStockAnalysis(JavaSparkContext sc,SparkSession spark) throws IOException {
-
 	    JavaRDD<Stock> stocksRDD=sc.parallelize(HBaseHelper.getStockAnalysis());
-	    
 	    String schemaString = "date open high low close volumn";
-	    
 	    List<StructField> fields = new ArrayList<StructField>();
 	    
-	    for (String fieldName : schemaString.split(" ")) 
-	    {
+	    for (String fieldName : schemaString.split(" ")) {
 	    	StructField field = null;
-//	    	if (fieldName.equalsIgnoreCase("date")) {
-	    		field = DataTypes.createStructField(fieldName, DataTypes.StringType, true);
-//	    	} else {
-//	    		field = DataTypes.createStructField(fieldName, DataTypes.FloatType, true);
-//	    	}
-	    	
+			field = DataTypes.createStructField(fieldName, DataTypes.StringType, true);
 	    	fields.add(field);
 	    }
-	    StructType schema = DataTypes.createStructType(fields);
 
-	    JavaRDD<Row> rowRDD = stocksRDD.map((Function<Stock, Row>) record -> 
-	    {
-//	    	if (record.getDate() !=null) {
-//	    		return (Row) RowFactory.create(record.getDate() , record.getOpen(),record.getClose(),record.getLow(), record.getHigh(), record.getVolumn());
-//	    	}
-//			return null;
+	    StructType schema = DataTypes.createStructType(fields);
+	    JavaRDD<Row> rowRDD = stocksRDD.map((Function<Stock, Row>) record -> {
 	    	return (Row) RowFactory.create(record.getDate() , record.getOpen(),record.getClose(),record.getLow(), record.getHigh(), record.getVolumn());
 	    });
 
 	    Dataset<Row> dataFrame = spark.createDataFrame(rowRDD, schema);
 	    dataFrame.createOrReplaceTempView("stocks");
-	    //Dataset<Row> stockResult = spark.sql("SELECT date,open,high,low,close,volumn FROM stocks WHERE date != 'NULL'");
-	    Dataset<Row> stockResult = spark.sql("SELECT open,high,low,close,volumn FROM stocks WHERE open != 'NULL'");
+	    Dataset<Row> stockResult = spark.sql("SELECT open,high,low,close,volumn FROM stocks WHERE open > 1 and open < 3");
 	    stockResult.show(10);
 	    
 	    System.out.println("Select query done for result !!!");
 
-	    //Dataset<Row> stockCount = spark.sql("SELECT date,open,high,low,close,volumn FROM stocks group by date");
-	    Dataset<Row> stockCount = spark.sql("SELECT COUNT(open),COUNT(high),COUNT(low),COUNT(close),volumn FROM stocks group by volumn");
-	    stockCount.show(10);
+	    Dataset<Row> stockAvg = spark.sql("SELECT avg(open) as average_open_price FROM stocks");
+	    stockAvg.show(10);
+	    
+	    Dataset<Row> stockMax = spark.sql("SELECT max(high) as max_high_price FROM stocks");
+	    stockMax.show(10);
 	    
 	    System.out.println("Count query done for result !!!");
 	    stockResult.write().mode("append").option("header","true").csv("hdfs://localhost/user/cloudera/StockSelection");
-	    stockCount.write().mode("append").option("header","true").csv("hdfs://localhost/user/cloudera/StockCountAnalysis");
+	    stockAvg.write().mode("append").option("header","true").csv("hdfs://localhost/user/cloudera/StockAvgAnalysis");
+	    stockMax.write().mode("append").option("header","true").csv("hdfs://localhost/user/cloudera/StockMaxAnalysis");
 	    
 	    System.out.println("HDFS File write done");
 	  }
